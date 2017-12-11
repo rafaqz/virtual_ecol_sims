@@ -28,11 +28,7 @@ BuildMatrix <- function(row_values, tsf_values, species) {
   return(matrx)
 }
 
-BuildArrays <- function(species) {
-  Time <- c(0, 1, 2, 3, 4, 6, 8, 13, 15, 26, 28, 33, 36, 41, 86)
-  tsf_values <- c(0, 1, 2, 3, 4, 6, 8, 13, 15, 26, 28, 33, 36, 41, 86)
-  priorities <- c(2, 8, 26, 41, 4, 15, 33, 86, 1, 6, 13, 3, 36, 28)
-
+BuildArrays <- function(species, priorities, tsf_values, Time) {
   occupancy_meta_matrix <- BuildMatrix(species$occupancy, tsf_values, species)
   prob_matrix <- BuildMatrix(species$detection_prob, tsf_values, species)
   mu <- BuildMu(species, tsf_values, Time)
@@ -217,6 +213,10 @@ field_day_seqs <- list(c(rep(0,8), rep(1,3), rep(2,1),rep(3,1), rep(5,1), rep(10
                    c(rep(0,180), rep(1,60), rep(2,30), rep(3,12), rep(4,7), rep(5,4), rep(6,2), rep(7,2), rep(8,2), rep(10,2)),
                    c(rep(0,268), rep(1,90), rep(2,47), rep(3,18), rep(4,10), rep(5,5), rep(6,3), rep(7,2), rep(8,1), rep(10,1))
                   )
+Time <- c(0, 1, 2, 3, 4, 6, 8, 13, 15, 26, 28, 33, 36, 41, 86)
+tsf_values <- c(0, 1, 2, 3, 4, 6, 8, 13, 15, 26, 28, 33, 36, 41, 86)
+priorities <- c(2, 8, 26, 41, 4, 15, 33, 86, 1, 6, 13, 3, 36, 28)
+
 
 # TODO: Separate and move this section into user-defined code (examples in readme/docs)
 settings <- list(
@@ -232,5 +232,5 @@ settings <- list(
 )
 scenarios <- Map(BuildScenario, indexes, field_day_seqs)
 species <- read.csv("species.csv")
-arrays <- BuildArrays(species)
+arrays <- BuildArrays(species, priorities, tsf_values, Time)
 field_trip <- FieldTrip(scenarios[[1]], settings, arrays)

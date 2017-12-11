@@ -70,7 +70,7 @@ RandomIndex <- function(scenario) {
   return(index)
 }
 
-TotalSites <- function(scenario, settings) {
+TotalSites <- function(index, scenario, settings) {
   field_days <- scenario$field_day_values[1, index] 
   field_mins <- field_days * settings$mins_per_day 
   total_site_time <- field_mins - settings$home_site_travel * field_days  
@@ -81,7 +81,7 @@ TotalSites <- function(scenario, settings) {
 
 FieldTrip <- function(scenario, settings, arrays) { 
   index <- RandomIndex(scenario)
-  total_sites <- TotalSites(scenario, settings)
+  total_sites <- TotalSites(index, scenario, settings)
   species_id <- c(rep(0, 20))
 
   num_plants <- 0
@@ -155,11 +155,13 @@ FieldTrip <- function(scenario, settings, arrays) {
     summary_data[, 6, reps, tsf_index] <- tsf
   }
 
-  return(list(fitting_data = fitting_data, 
-              num_plants = num_plants, 
-              findsthrutime = findsthrutime, 
-              summary_data = summary_data, 
-              species_id = species_id))
+  list(
+    fitting_data = fitting_data, 
+    num_plants = num_plants, 
+    findsthrutime = findsthrutime, 
+    summary_data = summary_data, 
+    species_id = species_id
+  )
 }
 
 ############################################

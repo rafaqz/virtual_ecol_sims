@@ -1,7 +1,7 @@
 species <- read.csv("species.csv")
 
 Time <- c(0, 1, 2, 3, 4, 6, 8, 13, 15, 26, 28, 33, 36, 41, 86)
-TSFvalues <- c(0, 1, 2, 3, 4, 6, 8, 13, 15, 26, 28, 33, 36, 41, 86)
+tsf_values <- c(0, 1, 2, 3, 4, 6, 8, 13, 15, 26, 28, 33, 36, 41, 86)
 priorities <- c(2, 8, 26, 41, 4, 15, 33, 86, 1, 6, 13, 3, 36, 28)
 
 # Strategic sampling with a PriorityList of sites to visit
@@ -29,31 +29,31 @@ value_seqs <- list(c(rep(0,8), rep(1,3), rep(2,1),rep(3,1), rep(5,1), rep(10,1))
 
 ######################################################################################
 # Deterministic parameters
-HometoSiteTravel = (1 * 2) # 1 minute to get to sites and home
-HrsPerDay = 10 # long days
-Maxtime = 60 * 30   # 30 hours at one replicate
-mt = 1 # 1 minute to measure 
-N.reps = 1 # one replicate
-N.fieldtrips = 100 
-sd.obs = 0.395
-setuptime = 1 # 1 minute to set up
-TravelbwSites = 1 # 1 minute to travel between sites
+num_reps = 1 # one replicate
+num_fieldtrips = 100 
+sd_obs = 0.395
+hours_per_day = 10 # long days
+site_max_time = 60 * 30   # 30 hours at one replicate
+setup_time = 1 # 1 minute to set up
+measurement_time = 1 # 1 minute to measure 
+home_site_travel = (1 * 2) # 1 minute to get to sites and home
+bw_site_travel = 1 # 1 minute to travel between sites
 
 #####################################################################################
 
-mu <- matrix(NA, nrow = length(Hmax), ncol=length(Time))
-N.species <- dim(mu)[1]
-row.names(mu) <- row_names
-colnames(mu) <- TSFvalues
-Occupancy_meta_matrix <- BuildMatrix(occupancy)
-p_matrix <- BuildMatrix(detection_prob)
-N.TSF <- length(TSFvalues)
-FieldMinsDay <- HrsPerDay * 60   
+mu <- matrix(NA, nrow = length(species$hmax), ncol=length(Time))
+num_species <- dim(mu)[1]
+row.names(mu) <- species$names
+colnames(mu) <- tsf_values
+occupancy_meta_matrix <- BuildMatrix(species$occupancy)
+prob_matrix <- BuildMatrix(species$detection_prob)
+num_tsf <- length(tsf_values)
+field_mins_day <- hours_per_day * 60   
 
-PriorityList <- matrix(NA, 1400, 2)
-PriorityList[, 1] <- rep(priorities, 100)
-PriorityList[, 2] <- rep(c(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1), 100)
-colnames(PriorityList) <- c('TSF', 'Rep')
+priority_list <- matrix(NA, 1400, 2)
+priority_list[, 1] <- rep(priorities, 100)
+priority_list[, 2] <- rep(c(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1), 100)
+colnames(priority_list) <- c('TSF', 'Rep')
 
 for (j in 1:length(species$hmax)) { 
   for (x in 1:length(Time)) {
@@ -62,11 +62,11 @@ for (j in 1:length(species$hmax)) {
 }
 
 BuildMatrix <- function(row_values) {
-  matrx <- matrix(NA, nrow=N.species, ncol=length(TSFvalues))
-  row.names(matrx) <- row_names
-  colnames(matrx) <- TSFvalues
-  for (w in 1:length(TSFvalues)) {
-    matrx[,w] <- occupancy
+  matrx <- matrix(NA, nrow = num_species, ncol = length(tsf_values))
+  row.names(matrx) <- species$name
+  colnames(matrx) <- tsf_values
+  for (w in 1:length(tsf_values)) {
+    matrx[,w] <- row_values 
   }
   return(matrx)
 }
@@ -81,181 +81,149 @@ BuildScenarios <- function(days, value_seq) {
   for (q in 2:length(values[2, ])) {
     values[2, q] <- values[2, q - 1] + values[2, q]
   }
-  list(mu, values, FieldMinsDay, HometoSiteTravel, Maxtime, TravelbwSites, 
-       PriorityList, N.fieldtrips, TotalFieldDays = days, TSFvalues, N.reps, 
-       setuptime, mt, HrsPerDay, p_matrix, Occupancy_meta_matrix, sd.obs, 
-       N.TSF)
+  list(
+    mu = mu, 
+    values = values, 
+    field_mins_day = field_mins_day, 
+    home_site_travel = home_site_travel, 
+    site_max_time = site_max_time, 
+    bw_site_travel = bw_site_travel, 
+    priority_list = priority_list, 
+    num_fieldtrips = num_fieldtrips, 
+    total_field_days = days, 
+    tsf_values = tsf_values, 
+    num_reps = num_reps, 
+    setup_time = setup_time, 
+    measurement_time = measurement_time, 
+    hours_per_day = hours_per_day, 
+    prob_matrix = prob_matrix, 
+    occupancy_meta_matrix = occupancy_meta_matrix, 
+    sd_obs = sd_obs, 
+    num_tsf = num_tsf
+   )
 }
 
 scenarios <- Map(BuildScenarios, indexes, value_seqs)
+scenario <- scenarios[[1]]
+scenario$field_mins_day
 
 ##################################
 # Collecting between 2 and 3 individuals per species
 
-Fieldtrip <- function(Scenario) { 
-  as.numeric(Sys.time())-> g; set.seed((g - floor(g)) * 1e8 -> seed); print(seed)
-  species.ID <- c(rep(0,20))
-  Rando <- runif(1, 0, 1)
-  RealIndex <- min(which(Rando <= Scenario[[2]][2,])) 
-  RealFieldDays <- Scenario[[2]][1, RealIndex] 
-  RealFieldDaysMins <- RealFieldDays * Scenario[[3]] 
-  TotalSiteTime <- RealFieldDaysMins - Scenario[[4]] * RealFieldDays  
-  TotalSites <- round(TotalSiteTime/ (Scenario[[5]] + Scenario[[6]]))
-  rm(Rando, RealIndex, RealFieldDays, RealFieldDaysMins, TotalSiteTime) 
+FieldTrip <- function(scenario) { 
+  g <- as.numeric(Sys.time())
+  set.seed((g - floor(g)) * 1e8 -> seed) 
+  print(seed)
+
+  species_id <- c(rep(0, 20))
+  rando <- runif(1, 0, 1)
+  realindex <- min(which(rando <= scenario$values[2, ])) 
+  realfield_days <- scenario$values[1, realindex] 
+  realfield_daysmins <- realfield_days * scenario$field_mins_day 
+  total_site_time <- realfield_daysmins - scenario$home_site_travel * realfield_days  
+  total_sites <- round(total_site_time / (scenario$site_max_time + scenario$bw_site_travel))
+  num_plants <- 0
+
+  fitting_data <- array(NA, c(40000, 4))
+  colnames(fitting_data) <- c('Sp', 'Height', 'TSF', 'Rep')
   
-  FittingData <- array(NA, c(40000, 4))
-  colnames(FittingData) <- c('Sp', 'Height', 'TSF', 'Rep')
+  findsthrutime <- array(NA, c(40000, 6, num_reps, num_tsf))
+  colnames(findsthrutime) <- c('SpeciesID', ' ', ' ', ' ', 'Time(mins)','Height(cm)')
   
-  N.plants <- 0
+  summary_data <- array(NA, c(num_species, 6, num_reps, num_tsf))
+  colnames(summary_data) <- c('indivs_counts', 'Presence', 'Occup', 'Searchable', 'mean H(cm)', 'TSF')
   
-  Findsthrutime <- array(NA, c(40000, 6, N.reps, N.TSF))
-  colnames(Findsthrutime) <- c('SpeciesID', ' ', ' ', ' ', 'Time(mins)','Height(cm)')
-  
-  SummaryData <- array(NA, c(N.species, 6, N.reps, N.TSF))
-  colnames(SummaryData) <- c('indivs_counts', 'Presence', 'Occup', 'Searchable', 'mean H(cm)', 'TSF')
-  
-  
-  for (t in 1:TotalSites) {
-    
-    TSF <- Scenario[[7]][t, 1]
-    
-    TSFIndex <- which(Scenario[[10]] == TSF)
-    
-    Rep <- Scenario[[7]][t, 2]
-    
-    matrix_ind_counts <- matrix(0, N.species, 1)
+  for (t in 1:total_sites) {
+    tsf <- scenario$priority_list[t, 1]
+    tsf_index <- which(scenario$tsf_values == tsf)
+    reps <- scenario$priority_list[t, 2]
+    matrix_ind_counts <- matrix(0, num_species, 1)
     matrix_test <- matrix(NA, 40000, 6)   
-    colnames(matrix_test) <- c('ChosenSpecies','indivID',  'TSF',  'Rep', 'time_mins','H')
+    colnames(matrix_test) <- c('ChosenSpecies', 'indivID',  'TSF',  'Rep', 'time_mins', 'H')
     
-    Presence <- rbinom(N.species, 1, Scenario$Occupancy_meta_matrix[,TSFIndex])
-    Searchable <- Presence
+    presence <- rbinom(num_species, 1, scenario$occupancy_meta_matrix[, tsf_index])
+    searchable <- presence
+    site_time <- scenario$setup_time 
+    row_counter <- 0
     
-    timeatsite <- 0
+    poss_detection_time <- rexp(num_species, 1 / scenario$prob_matrix[, tsfindex])
+    poss_min_detection_time <- min(poss_detection_time[searchable == 1]) 
     
-    setuptime <- Scenario[[12]] 
-    timeatsite <- timeatsite + setuptime
-    
-    datarowcounter <- 0
-    
-    PossDetectiontime <- rexp(N.species, 1/Scenario$p_matrix[,TSFIndex])
-    PossMinDetectiontime <- min(PossDetectiontime[Searchable==1]) 
-    
-    
-    while((1 - prod(matrix_ind_counts[Presence==1] >= 2 )) & (timeatsite + PossMinDetectiontime + Scenario[[13]] < Scenario[[5]])) {  
+    while((1 - prod(matrix_ind_counts[presence == 1] >= 2 )) & (site_time + poss_min_detection_time + scenario$measurement_time < scenario$site_max_time)) {  
+      row_counter <- row_counter + 1
+      num_plants <- num_plants + 1
+      matrix_ind_counts[chosen_species, 1] <- matrix_ind_counts[chosen_species, 1] + 1
       
-      Detectiontime <- PossMinDetectiontime
+      detection_time <- poss_min_detection_time
+      site_time <- site_time + detection_time + scenario$measurement_time
       
-      ChosenSpecies <- which(Detectiontime == PossDetectiontime)
-      species.ID[ChosenSpecies] <- 1
+      chosen_species <- which(detection_time == poss_detection_time)
+      species_id[chosen_species] <- 1
       
-      datarowcounter <- datarowcounter + 1
+      k <- log(mu[chosenspecies, tsf_index]) - scenario$sd_obs^2
+      H <- rlnorm(1, k, scenario$sd_obs)
       
-      N.plants <- N.plants + 1
+      fitting_data[num_plants, 1] <- chosen_species
+      fitting_data[num_plants, 2] <- H
+      fitting_data[num_plants, 3] <- tsf_values[tsf_index]
+      fitting_data[num_plants, 4] <- reps
       
-      matrix_ind_counts[ChosenSpecies, 1] <- matrix_ind_counts[ChosenSpecies, 1] + 1
+      matrix_test[row_counter, 1] <- chosen_species
+      matrix_test[row_counter, 2] <- num_plants
+      matrix_test[row_counter, 3] <- tsf
+      matrix_test[row_counter, 4] <- reps
+      matrix_test[row_counter, 5] <- site_time
+      matrix_test[row_counter, 6] <- H
       
-      matrix_test[datarowcounter, 1] <- ChosenSpecies
-      matrix_test[datarowcounter, 2] <- N.plants
-      matrix_test[datarowcounter, 3] <-  TSF
-      matrix_test[datarowcounter, 4] <-  Rep
-      
-      k <- log(mu[ChosenSpecies, TSFIndex]) - Scenario$sd.obs^2
-      H <- rlnorm(1, k, Scenario$sd.obs)
-      
-      FittingData[N.plants, 1] <- ChosenSpecies
-      FittingData[N.plants, 2] <- H
-      FittingData[N.plants, 3] <- TSFvalues[TSFIndex]
-      FittingData[N.plants, 4] <- Rep
-      
-      
-      matrix_test[datarowcounter, 6] <- H
-      
-      timeatsite <- timeatsite + Detectiontime + Scenario[[13]]
-      
-      matrix_test[datarowcounter, 5] <- timeatsite
-      
-      
-      if  (matrix_ind_counts[ChosenSpecies, 1] == 5 ) { 
-        Searchable[ChosenSpecies] <- 0
+      if  (matrix_ind_counts[chosen_species, 1] == 5 ) { 
+        searchable[chosen_species] <- 0
       }
       
-      PossDetectiontime <- rexp(N.species, 1/ Scenario$p_matrix[,TSFIndex])
-      PossMinDetectiontime <- min(PossDetectiontime[Searchable == 1]) 
-      rm(k,H, ChosenSpecies)
+      poss_detection_time <- rexp(num_species, 1 / scenario$prob_matrix[, tsf_index])
+      poss_min_detection_time <- min(poss_detection_time[searchable == 1]) 
     }
     
-    rm(timeatsite,setuptime,datarowcounter, PossDetectiontime, PossMinDetectiontime, Detectiontime)
+    findsthrutime[,  , reps, tsf_index] <- matrix_test
     
-    Findsthrutime[ ,  , Rep, TSFIndex] <- matrix_test
-    
-    SummaryData[ , 1, Rep, TSFIndex] <- matrix_ind_counts
-    SummaryData[ , 2, Rep, TSFIndex] <- Presence     
-    SummaryData[ , 3, Rep, TSFIndex] <- Scenario$Occupancy_meta_matrix[,TSFIndex]
-    SummaryData[ , 4, Rep, TSFIndex] <- Searchable
-    SummaryData[ , 5, Rep, TSFIndex] <- Scenario[[1]][,6]
-    SummaryData[ , 6, Rep, TSFIndex] <- TSF
-    
-    rm(TSF, TSFIndex, Rep, matrix_ind_counts, matrix_test, Presence, Searchable)
-    
+    summary_data[, 1, reps, tsf_index] <- matrix_ind_counts
+    summary_data[, 2, reps, tsf_index] <- presence     
+    summary_data[, 3, reps, tsf_index] <- scenario$occupancy_meta_matrix[, tsf_index]
+    summary_data[, 4, reps, tsf_index] <- searchable
+    summary_data[, 5, reps, tsf_index] <- scenario$mu[, 6]
+    summary_data[, 6, reps, tsf_index] <- tsf
   }
-  
-  rm(TotalSites)
-  
-  return(list(FittingData, N.plants, Findsthrutime, SummaryData, species.ID))
-  
-  rm(FittingData, N.plants, Findsthrutime, SummaryData, species.ID)  
-  
+  return(list(fitting_data, num_plants, findsthrutime, summary_data, species_id))
 }
-
-
-
 
 #########################################################################
+# Simulate fieldtrips for dataset simulation - perhaps model less?
 
-# simulate 100 fieldtrips for dataset simulation - perhaps model less?
+SimulateFieldTrips <- function(num_scen) {
+  all_fitting_data <- array(NA, c(40000, 4, num_scen, num_fieldtrips))
+  #colnames(all_fitting_data) <- c('Sp', 'Height', 'TSF', 'Reps')
+  sample_sizes <- array(NA, c(num_scen, num_fieldtrips))
+  sample_species <- array(NA, c(1,num_scen, num_fieldtrips))
+  # all_findsthru_time <- array(NA, c(40000, 6, num_reps, num_TSF, num_scen, num_fieldtrips))
+  #colnames(all_findsthru_time) <- c('ChosenSpecies','num_plants',  'TSF',  'Rep', 'time_mins','H')
+  all_summary_data <- array(num_, c(num_species, 6, num_reps, num_TSF, num_scen, num_fieldtrips))
+  colnames(all_summary_data) <- c('indivs_counts', 'Presence', 'Occup', 'Searchable', 'mean H(cm)', 'TSF')
 
-N.species <- dim(mu)[1]
-N.scen <- 17
-N.fieldtrips <- 100
-All_FittingData <- array(NA, c(40000, 4, N.scen, N.fieldtrips))
-#colnames(All_FittingData) <- c('Sp', 'Height', 'TSF', 'Reps')
-Sample_sizes <- array(NA, c(N.scen, N.fieldtrips))
-Sample_species <- array(NA, c(1,N.scen, N.fieldtrips))
-All_Findsthrutime <- array(NA, c(40000, 6, N.reps, N.TSF, N.scen, N.fieldtrips))
-#colnames(All_Findsthrutime) <- c('ChosenSpecies','N.plants',  'TSF',  'Rep', 'time_mins','H')
-All_SummaryData <- array(NA, c(N.species, 6, N.reps, N.TSF, N.scen, N.fieldtrips))
-#colnames(All_SummaryData) <- c('indivs_counts', 'Presence', 'Occup', 'Searchable', 'mean H(cm)', 'TSF')
+  all_species_id <- array(NA, c(num_species, num_scen, num_fieldtrips))
 
-All_species.ID <- array(NA, c(N.species, N.scen, N.fieldtrips))
-
-
-##########################################################################
-
-for (i in 1:N.scen) {
-  
-  for (f in 1:N.fieldtrips) {
-    
-    temp.list <- Fieldtrip(scenarios[[i]])
-    All_FittingData[ , ,i,f] <-  temp.list[[1]]
-    Sample_sizes[i,f] <- temp.list[[2]]
-    All_Findsthrutime[, , , ,i,f] <- temp.list[[3]]
-    All_SummaryData[, , , ,i,f] <- temp.list[[4]]
-    All_species.ID[ ,i,f] <- temp.list[[5]]
-    
-    Sample_species[ , i,f] <- length(na.omit(unique(temp.list[[1]][,1])))
-    
-    temp.species <- as.numeric(length(unique(All_FittingData[ ,1 ,i,f])))
-    
-    #All_Results[1:(Sample_species[ ,i,f] * 3 + 7), ,i,f] <- Fitmodel(All_FittingData[1:Sample_sizes[i,f], ,i,f])
-    
-    rm(temp.list)
-    
-    
+  for (i in 1:num_scen) {
+    for (f in 1:num_fieldtrips) {
+      temp_list <- FieldTrip(scenarios[[i]])
+      all_fitting_data[ , ,i,f] <-  temp_list$mu
+      sample_sizes[i,f] <- temp_list$values
+      all_findsthru_time[, , , ,i,f] <- temp_list$field_mins_day
+      all_summary_data[, , , ,i,f] <- temp_list$home_site_travel
+      all_species_id[ ,i,f] <- temp_list$site_max_time
+      sample_species[ , i,f] <- length(na_omit(unique(temp_list$mu[,1])))
+      temp_species <- as.numeric(length(unique(all_fitting_data[ ,1 ,i,f])))
+      # all_results[1:(sample_species[ ,i,f] * 3 + 7), ,i,f] <- Fitmodel(all_fitting_data[1:sample_sizes[i,f], ,i,f])
+    }
   }
-  
-  
 }
-
 
 ############################################################################
 

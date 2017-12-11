@@ -64,32 +64,42 @@ BuildScenario <- function(days, field_day_seq) {
   )
 }
 
-FieldTrip <- function(scenario, settings, arrays) { 
+RandomIndex <- function(scenario) {
   g <- as.numeric(Sys.time())
   set.seed((g - floor(g)) * 1e8 -> seed) 
   print(seed)
 
-  species_id <- c(rep(0, 20))
   rando <- runif(1, 0, 1)
   index <- min(which(rando <= scenario$field_day_values[2, ])) 
+  return(index)
+}
+
+TotalSites <- function(scenario, settings) {
   field_days <- scenario$field_day_values[1, index] 
   field_mins <- field_days * settings$mins_per_day 
   total_site_time <- field_mins - settings$home_site_travel * field_days  
   # TODO: Should this be trunc instead of round?
   total_sites <- round(total_site_time / (settings$max_site_time + settings$between_site_travel))
+  return(total_sites)
+}
+
+FieldTrip <- function(scenario, settings, arrays) { 
+  index <- RandomIndex(scenario)
+  total_sites <- TotalSites(scenario, settings)
+  species_id <- c(rep(0, 20))
+
   num_plants <- 0
   num_species <- dim(arrays$mu)[1]
   num_tsf = length(arrays$tsf_values)
 
   fitting_data <- array(NA, c(40000, 4))
   colnames(fitting_data) <- c('Sp', 'Height', 'TSF', 'Rep')
-  
   findsthrutime <- array(NA, c(40000, 6, settings$num_reps, num_tsf))
   colnames(findsthrutime) <- c('SpeciesID', ' ', ' ', ' ', 'Time(mins)','Height(cm)')
-  
   summary_data <- array(NA, c(num_species, 6, settings$num_reps, num_tsf))
   colnames(summary_data) <- c('indivs_counts', 'Presence', 'Occup', 'Searchable', 'mean H(cm)', 'TSF')
   
+  # TODO: Simplify these loops and make the logic clearer.
   for (t in 1:total_sites) {
     tsf <- arrays$priority_list[t, 1]
     tsf_index <- which(arrays$tsf_values == tsf)
@@ -109,7 +119,7 @@ FieldTrip <- function(scenario, settings, arrays) {
     while((1 - prod(matrix_ind_counts[presence == 1] >= 2 )) & (site_time + poss_min_detection_time + settings$measurement_time < settings$max_site_time)) {  
       row_counter <- row_counter + 1
       num_plants <- num_plants + 1
-      
+
       detection_time <- poss_min_detection_time
       site_time <- site_time + detection_time + settings$measurement_time
 

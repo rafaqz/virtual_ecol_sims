@@ -52,10 +52,10 @@ generate_seed <- function() {
   return(seed)
 }
 
-random_index <- function(scenario) {
-  rando <- runif(1, 0, 1)
-  index <- min(which(rando <= scenario$half_day_probs[2, ]))
-  return(index)
+random_half_days <- function(scenario) {
+  randomiser <- runif(1, 0, 1)
+  half_days <- min(which(randomiser <= scenario$half_day_probs[2, ]))
+  return(half_days)
 }
 
 random_presences <- function(input, num_species, site_index) {
@@ -66,8 +66,8 @@ random_detections <- function(input, num_species, site_index) {
   rexp(num_species, 1 / input$probability_matrix[, site_index])
 }
 
-total_sites <- function(index, scenario, settings) {
-  field_days <- scenario$half_day_probs[1, index]
+total_sites <- function(half_days, scenario, settings) {
+  field_days <- scenario$half_day_probs[1, half_days]
   field_mins <- field_days * settings$mins_per_day
   total_site_time <- field_mins - settings$home_site_travel * field_days
   total_sites <- round(total_site_time / (settings$max_site_time + settings$between_site_travel))
@@ -75,8 +75,8 @@ total_sites <- function(index, scenario, settings) {
 }
 
 fieldtrip <- function(model_data, scenario, settings, input, output_test = FALSE) {
-  index <- random_index(scenario)
-  total_sites <- total_sites(index, scenario, settings)
+  half_days <- random_half_days(scenario)
+  total_sites <- total_sites(half_days, scenario, settings)
 
   num_plants <- 0
   num_species <- dim(model_data$mu)[1]

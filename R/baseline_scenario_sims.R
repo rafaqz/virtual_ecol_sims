@@ -33,7 +33,6 @@ setup_simulation <- function(settings, sites, species, model_data) {
 
   scenarios = Map(build_scenario, num_days, field_day_scenarios)
 
-
   list(
     settings = settings,
     scenarios = scenarios,
@@ -63,17 +62,17 @@ build_scenario <- function(num_days, field_day_values) {
 build_colnames <- function(settings) {
   dependent_label <- settings$dependent_label 
   dependent_summary_label <- settings$dependent_summary_label
-  site_label <- settings$site_label
+  site_name_label <- settings$site_name_label
   replicates <- "Replicates"
   chosen <- "Chosen Species"
   time_ <- "Time (mins)"
 
   return(list(
-    summary = c("Indivs Counts", "Presence", "Occupancy", "Searchable", dependent_summary_label, site_label),
-    findsthrutime = c(chosen, "Num Plants", site_label, replicates, time_, dependent_label),
-    fitting_data = c(chosen, dependent_label, site_label, replicates),
-    matrix_test = c(chosen, "Indiv ID", site_label, replicates, time_, dependent_label),
-    priority_list = c(site_label, replicates)
+    summary = c("Indivs Counts", "Presence", "Occupancy", "Searchable", dependent_summary_label, site_name_label),
+    findsthrutime = c(chosen, "Num Plants", site_name_label, replicates, time_, dependent_label),
+    fitting_data = c(chosen, dependent_label, site_name_label, replicates),
+    matrix_test = c(chosen, "Indiv ID", site_name_label, replicates, time_, dependent_label),
+    priority_list = c(site_name_label, replicates)
   ))
 }
 
@@ -99,7 +98,7 @@ random_detections <- function(sites, num_species, site_index) {
   rexp(num_species, 1 / sites$detection_probabilities[, site_index])
 }
 
-# Other math ---------------------------------------------
+# Other math ----------------------------------------------------------
 
 # Calculate the number of sites possible to visit in a scenario.
 calculate_total_sites <- function(half_days, scenario, settings) {
@@ -125,7 +124,7 @@ fieldtrip <- function(model_data, scenario, settings, sites, column_names,
 
   num_individuals <- 0
   num_species <- dim(model_data$mu)[1]
-  num_sites <- length(sites$site_ids)
+  num_sites <- length(sites$site_names)
   max_finds <- calculate_max_finds(settings, num_species, num_sites)
 
   species_sampled <- c(rep(0, num_species))
@@ -140,10 +139,10 @@ fieldtrip <- function(model_data, scenario, settings, sites, column_names,
   }
 
   for (s in 1:total_sites) {
-    s = 1
-    site_id <- sites$priority_list[s, 1]
-    site_index <- which(sites$site_ids == site_id)
-    replicates <- sites$priority_list[s, 2]
+    s_cyclic = (s - 1) %% num_sites + 1
+    site_name <- sites$priorities[s_cyclic]
+    site_index <- which(sites$site_names == site_name)
+    replicates <- sites$replicates[s_cyclic]
     matrix_ind_counts <- matrix(0, num_species, 1)
     matrix_test <- matrix(NA, max_finds, 6)
     colnames(matrix_test) <- column_names$matrix_test
@@ -172,7 +171,7 @@ fieldtrip <- function(model_data, scenario, settings, sites, column_names,
       }
 
       measurement <- settings$measurement_func(settings, sites, model_data, chosen_species, site_index)
-      fitting_data[num_individuals, ] <- c(chosen_species, measurement, sites$site_ids[site_index], replicates)
+      fitting_data[num_individuals, ] <- c(chosen_species, measurement, sites$site_names[site_index], replicates)
       if (output_test) {
         matrix_test[row_counter, ] <- c(chosen_species, num_individuals, site, replicates, site_time, measurement)
       }
@@ -187,7 +186,7 @@ fieldtrip <- function(model_data, scenario, settings, sites, column_names,
     summary_data[, 3, replicates, site_index] <- sites$occupancy[, site_index]
     summary_data[, 4, replicates, site_index] <- searchable
     summary_data[, 5, replicates, site_index] <- model_data$mu[, 6]
-    summary_data[, 6, replicates, site_index] <- site_id
+    summary_data[, 6, replicates, site_index] <- site_name
   }
 
   output <- list(
@@ -206,19 +205,20 @@ fieldtrip <- function(model_data, scenario, settings, sites, column_names,
 
 # Simulate multiple fieldtrips in multiple scenarios.
 simulate_fieldtrips <- function(simulation, output_test = FALSE) {
+  # Define local variables
   model_data <- simulation$model_data
   scenarios <- simulation$scenarios
   settings <- simulation$settings
   sites <- simulation$sites
   column_names <- simulation$column_names
-
   num_fieldtrips <- settings$num_fieldtrips
   num_replicates <- settings$num_replicates
   num_scenarios <- length(scenarios)
   num_species <- dim(sites$occupancy)[1]
-  num_sites <- length(sites$site_ids)
+  num_sites <- length(sites$site_names)
   max_finds <- calculate_max_finds(settings, num_species, num_sites)
 
+  # Allocate arrays
   sample_sizes <- array(NA, c(num_scenarios, num_fieldtrips))
   sample_species <- array(NA, c(num_scenarios, num_fieldtrips))
   all_fitting_data <- array(NA, c(settings$size, 4, num_scenarios, num_fieldtrips))
@@ -226,12 +226,12 @@ simulate_fieldtrips <- function(simulation, output_test = FALSE) {
   all_summary_data <- array(NA, c(num_species, 6, num_replicates, num_sites, num_scenarios, num_fieldtrips))
   colnames(all_summary_data) <- column_names$summary
   all_species_sampled <- array(NA, c(num_species, num_scenarios, num_fieldtrips))
-
   if (output_test) {
     all_findsthrutime <- array(NA, c(max_finds, 6, num_replicates, num_sites, num_scenarios, num_fieldtrips))
     colnames(all_findsthrutime) <- column_names$findsthrutime
   }
 
+  # Run simulations
   for (i in 1:num_scenarios) {
     for (j in 1:num_fieldtrips) {
       output_test = FALSE
@@ -247,6 +247,7 @@ simulate_fieldtrips <- function(simulation, output_test = FALSE) {
     }
   }
 
+  # Compile output data
   output <- list(
     all_fitting_data = all_fitting_data,
     sample_sizes = sample_sizes,
@@ -264,30 +265,29 @@ simulate_fieldtrips <- function(simulation, output_test = FALSE) {
 
 
 
-
 # Project specific functions and lists ----------------------------------------
 # TODO: Separate and move this section into user-defined code (examples in readme/docs)
 
 # Conveniance function to fill a matrix with a vector when site specific
 # priors are not available.
-fill_matrix <- function(row_values, site_ids, species) {
-  matrx <- matrix(NA, nrow = length(species$hmax), ncol = length(site_ids))
+fill_matrix <- function(row_values, site_names, species) {
+  matrx <- matrix(NA, nrow = length(species$hmax), ncol = length(site_names))
   row.names(matrx) <- species$name
-  colnames(matrx) <- site_ids
-  for (w in 1:length(site_ids)) {
+  colnames(matrx) <- site_names
+  for (w in 1:length(site_names)) {
     matrx[, w] <- row_values
   }
   return(matrx)
 }
 
 # Prepare data to be used in the measurment function during simulations.
-prepare_model_data <- function(settings, species_data, site_data, site_ids) {
-  mu <- matrix(NA, nrow = length(species_data$hmax), ncol = length(site_ids))
+prepare_model_data <- function(settings, species_data, site_data, site_names) {
+  mu <- matrix(NA, nrow = length(species_data$hmax), ncol = length(site_names))
   row.names(mu) <- species_data$names
-  colnames(mu) <- site_ids
+  colnames(mu) <- site_names
   for (j in 1:length(species_data$hmax)) {
-    for (x in 1:length(site_ids)) {
-      mu[j, x] <- species_data$hmax[j] / (1 + exp(-1 * species_data$a[j] * (site_ids[x] - species_data$b[j])))
+    for (x in 1:length(site_names)) {
+      mu[j, x] <- species_data$hmax[j] / (1 + exp(-1 * species_data$a[j] * (site_names[x] - species_data$b[j])))
     }
   }
   k <- log(mu) - settings$sd_obs^2
@@ -317,18 +317,9 @@ settings <- list(
   between_site_travel = 1, # 1 minute to travel between sites
   dependent_label = "Height (cm)",
   dependent_summary_label = "Mean Height(cm)",
-  site_label = "Time Since Fire",
+  site_name_label = "Time Since Fire",
   measurement_func = random_measurement
 )
-
-# Expand priorities list. Expanded data is not actually used.
-build_priority_list <- function(sites, settings) {
-  num_fieldtrips <- settings$num_fieldtrips
-  priority_list <- matrix(NA, length(sites$id) * num_fieldtrips, 2)
-  priority_list[, 1] <- rep(sites$id, num_fieldtrips)
-  priority_list[, 2] <- rep(sites$replication, num_fieldtrips)
-  return(priority_list)
-}
 
 # Run Simulations -------------------------------------------------------------
 
@@ -336,20 +327,19 @@ build_priority_list <- function(sites, settings) {
 species_data <- read.csv("mallee.csv")
 site_data <- read.csv("sites.csv")
 
-site_ids <- sort(site_data$id)
-priority_list <- build_priority_list(site_data, settings)
-occupancy <- fill_matrix(species_data$occupancy, site_ids, species_data) 
-detection_probabilities <- fill_matrix(species_data$detection_prob, site_ids, species_data)
+site_names <- sort(site_data$name)
+occupancy <- fill_matrix(species_data$occupancy, site_names, species_data) 
+detection_probabilities <- fill_matrix(species_data$detection_prob, site_names, species_data)
 sites = list(
-  site_ids = site_ids,
-  priority_list = priority_list,
+  site_names = site_names,
   occupancy = occupancy,
-  detection_probabilities = detection_probabilities
+  detection_probabilities = detection_probabilities,
+  priorities = site_data$name,
+  replicates = site_data$replicates
 )
-model_data <- prepare_model_data(settings, species_data, site_data, site_ids)
+model_data <- prepare_model_data(settings, species_data, site_data, site_names)
 
 
 # Run simulation.
 simulation <- setup_simulation(settings, sites, species, model_data)
 results <- simulate_fieldtrips(simulation)
-      scenario = scenarios[[1]]
